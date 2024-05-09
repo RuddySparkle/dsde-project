@@ -17,7 +17,7 @@ if __name__ == "__main__":
         # get the results
         x = ScopusSearch(
             f'ABS ( "data mining" ) OR ABS ( "machine learning" ) OR TITLE ( "data mining" ) OR TITLE ( "machine learning" ) AND TITLE ( "material" ) OR ABS ( "material" ) OR SRCTITLE ( "material" ) AND SUBJAREA ( mate ) AND DOCTYPE ( "AR" ) AND SRCTYPE( j ) AND PUBYEAR = {year} AND NOT SUBJAREA (medi ) AND NOT SUBJAREA ( immu ) AND NOT SUBJAREA ( BIOC ) AND NOT SUBJAREA ( busi )',
-            view="STANDARD")
+            view="STANDARD", subscriber=False)
         print(f"Year: {year} , Results count: {len(x.results)}")
 
         # store the results and add the ref_docs key to store each reference
