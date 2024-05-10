@@ -5,3 +5,7 @@ Visualization/scopus_data/
 Visualization/streamlit/venv/
 
 .DS_Store
+
+Airflow/logs/*
+Airflow/dags/__pycache__/*
+Airflow/dags/.ipynb_checkpoints/*
