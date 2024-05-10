@@ -22,7 +22,7 @@ def main() :
     ## Initial Part ##
 
     # Main Title
-    st.title('Chula Academic Paper Analysis in 2018-2023')
+    st.title('Chula Academic Paper Analysis in 2018-2023 (Scopus Data)')
 
     # Load main dataset
     df = pd.read_csv('../cleaned_test.csv')
@@ -53,10 +53,13 @@ def main() :
     # Classification Data
     class_data = class_df['extracted_class'].unique()
     class_data.sort()
+    class_data = np.concatenate((['Any'], class_data), axis=0)
 
     # Published Year Data
     published_year_data = df['publish_year'].unique()
     published_year_data.sort()
+    published_year_data = np.concatenate((['Any'], published_year_data), axis=0)
+    # published_year_data
     
 
     # # Date Data 
@@ -103,15 +106,15 @@ def main() :
         if(not isAll):
             if(type == 'class') :
                 new_df = class_df[class_df['extracted_class'] == class_selected]
-                text_header = f'Count by year on {class_selected} class'
+                text_header = f'Academic Paper based on {class_selected} class'
             elif(type == 'date') :
                 new_df = class_df[class_df['publish_year'] == published_year_selected]
-                text_header = f'Paper Count in {published_year_selected}'
+                text_header = f'Academic Paper in {published_year_selected}'
         else:
             new_df = class_df
             text_header = f'Academic Paper Type from 2018-2023'
 
-        if(isAll or type == 'date') :
+        if(type == 'date') :
             sum_by_class = new_df['extracted_class'].value_counts().reset_index(name="class_count")
             his = px.histogram(sum_by_class, x ="class_count", y="extracted_class")
             his.update_layout(title=text_header, 
@@ -152,28 +155,33 @@ def main() :
     #     return line
 
     def generate_map(isAll: bool):
-        if(not isAll):
-            coor_data_ready = coor_data[coor_data['date'] == date_selected]
-        else:
-            country_df_ready = country_df[['title', 'affiliation_country']]
+        country_df_ready = country_df[['title', 'affiliation_country', 'publish_year']]
+        if(published_year_selected != 'Any') :
+            country_df_ready = country_df_ready[country_df_ready['publish_year'] == published_year_selected]
+        if(class_selected != 'Any') :
+            country_df_ready = pd.merge(country_df_ready, class_df.drop(columns=['publish_year']), on='title', how='inner')
+            country_df_ready = country_df_ready[country_df_ready['extracted_class'] == class_selected]
+        st.write(country_df_ready)
         
         country_freq = country_df_ready['affiliation_country'].value_counts()
         country_freq = country_freq.reset_index()
         country_freq['affiliation_country'] = country_freq['affiliation_country']
         country_freq = pd.merge(country_freq, coor_df, left_on='affiliation_country', right_on='country_code', how='inner')
         country_freq = country_freq.drop(columns=['Unnamed: 0', 'country_code'])
-        country_freq['paper_radius'] = country_freq['count'].apply(lambda count: math.sqrt(count))
+        radius_factor = 1000000 / country_freq['count'].max()
+        country_freq['paper_radius'] = country_freq['count'].apply(lambda count: count * radius_factor)
         # country_freq['paper_radius'] = country_freq['count']
         # country_freq['latitude'] = country_freq['latitude'].apply(to_float)
         # country_freq['longitude'] = country_freq['longitude'].apply(to_float)
         st.write(country_freq)
         
+
         layer = pdk.Layer("ScatterplotLayer",
                         country_freq,
                         get_position=['longitude', 'latitude'],
                         get_color=[255, 219, 230, 220],
                         get_radius="paper_radius",
-                        radius_scale=12000,
+                        radius_scale=1,
                         opacity=1,
                         pickable=True
                         )
@@ -191,39 +199,43 @@ def main() :
     ## ---------------------------------------------------------------------------- ##
 
     ## Main Contents ##
-    # Rain by Province
-    st.subheader('Chula all years classification')
-    st.plotly_chart(generate_histogram(True, 'any'))
-    st.plotly_chart(generate_histogram(False, 'class'))
-    st.plotly_chart(generate_histogram(False, 'date'))
+    # Histogram on Classification and Year
+    st.subheader('Histogram of Academic Paper Analysis')
+    if(published_year_selected == 'Any') :
+        st.plotly_chart(generate_histogram(True, 'date'))
+    else :
+        st.plotly_chart(generate_histogram(False, 'date'))
+    if(class_selected == 'Any') :
+        st.plotly_chart(generate_histogram(True, 'class'))
+    else :
+        st.plotly_chart(generate_histogram(False, 'class'))
+
+    # Geospatial Analysis on Country
+    st.subheader('Collaboration Analysis (Geospatial)')
+    st.markdown('Rain Map (All Date)')
+    st.pydeck_chart(generate_map(True))
 
     # Rain by Date
     # st.subheader('Rain by Date')
     # st.plotly_chart(generate_line(True))
     # st.plotly_chart(generate_line(False))
 
-    # Map on Date
-    st.subheader('Rain Map Analysis')
+    # # Map on Date
+    # st.subheader('Rain Map Analysis')
 
-    st.markdown('Rain Map (All Date)')
-    st.pydeck_chart(generate_map(True))
+    # st.markdown('Rain Map (All Date)')
+    # st.pydeck_chart(generate_map(True))
 
-    # st.markdown(f'Rain Map {date_selected}')
-    st.pydeck_chart(generate_map(False))
-
-    # Summary Block
-    st.subheader('Summary')
-    st.text('We can conclude that ระนอง and สุพรรณบุรี are the provinces \
-            \nthat have the highest and lowest rainfall in August 2017, respectively. \
-            \nAnd, we can also conclude that Aug 27, 2017 and Aug 22, 2017 are the dates that \
-            \nhave the highest and lowest rainfall in August 2017.')
+    # # st.markdown(f'Rain Map {date_selected}')
+    # st.pydeck_chart(generate_map(False))
 
 
-    # Block of Code
-    st.subheader('Code')
-    code = inspect.getsource(main)
-    st.code(code, language='python')
-    # st.write(df)
-    # st.write(coor_data)
+
+    # # Block of Code
+    # st.subheader('Code')
+    # code = inspect.getsource(main)
+    # st.code(code, language='python')
+    # # st.write(df)
+    # # st.write(coor_data)
 
 main()
