@@ -16,10 +16,22 @@ def to_string(data_cell):
 def to_float(data_cell):
     return float(data_cell)
 
+def get_year(data_cell):
+    data_cell = str(data_cell)
+    return data_cell.split()[-1]
+
+def lowercasing(data_cell):
+    data_cell = str(data_cell)
+    return data_cell.lower()
+
 def main() :
 
     ## ---------------------------------------------------------------------------- ##
     ## Initial Part ##
+    renamedScraped = {
+        'articleTitle': 'title',
+        'authorsAffilationCountry': 'affiliation_country',
+    }
 
     # Main Title
     st.title('Chula Academic Paper Analysis in 2018-2023 (Scopus Data)')
@@ -29,11 +41,22 @@ def main() :
     df['publish_year'] = df['publish_year'].apply(to_string)
     df['index'] = df['Unnamed: 0']
     df = df[['index', 'title', 'extracted_class', 'affiliation_country', 'publish_year']]
-    st.write(df)
+
+    # Load scraped dataset
+    scraped_df = pd.read_csv('../../WebScraping/RESTAPI/scraped_data.csv')
+    scraped_df = pd.DataFrame(scraped_df[['articleTitle', 'authorsAffilationCountry', 'extracted_class', 'publicationDate']])
+    scraped_df['publish_year'] = scraped_df['publicationDate'].apply(get_year)
+    scraped_df = scraped_df.drop(columns=['publicationDate'])
+    scraped_df = scraped_df.rename(columns=renamedScraped)
+    scraped_df['affiliation_country'] = scraped_df['affiliation_country'].apply(to_list)
+    scraped_df = scraped_df.explode('affiliation_country')
+    scraped_df['affiliation_country'] = scraped_df['affiliation_country'].apply(lowercasing)
+    scraped_df = scraped_df[scraped_df['affiliation_country'].str.len() == 3]
+    scraped_df = scraped_df[scraped_df['affiliation_country'] != 'chn']
+    scraped_df = scraped_df.drop_duplicates()
 
     # Load countrycode coordination dataset
     coor_df = pd.read_csv('../countrycode_coor.csv')
-    st.write(coor_df)
 
     # Classification Dataset
     class_df = df[['title', 'extracted_class', 'publish_year']]
@@ -47,7 +70,6 @@ def main() :
     country_df = country_df.explode('affiliation_country')
     country_df = country_df[country_df['affiliation_country'] != 'tha']
     country_df = country_df.drop_duplicates()
-    st.write(country_df)
 
     # Prepare Classification Dataset
     # Classification Data
@@ -59,45 +81,14 @@ def main() :
     published_year_data = df['publish_year'].unique()
     published_year_data.sort()
     published_year_data = np.concatenate((['Any'], published_year_data), axis=0)
-    # published_year_data
-    
-
-    # # Date Data 
-    # date_data = df['date'].unique()
-    # date_data.sort()
-
-    # # Code Data and map data prepare
-    # rain_by_coor = df.groupby('code')['rain'].mean()
-    # coor_data = pd.DataFrame(df['code'].unique()).rename(columns={0: 'code'}).merge(df[['code', 'latitude', 'longitude']], on='code', how='outer')
-    # coor_data = df.apply(lambda row: f"{row['code']}, {row['latitude']}, {row['longitude']}", axis=1)
-    # coor_data = coor_data.unique()
-    # coor_data.sort()
-    # coor_data = pd.DataFrame(coor_data).rename(columns={0: 'value'})
-    # coor_data = coor_data['value'].str.split(', ', expand=True)
-    # coor_data.columns = ['code', 'latitude', 'longitude']
-    # coor_data = coor_data.merge(rain_by_coor, on='code', how='inner')
-    # coor_data['rain_radius'] = coor_data['rain'].apply(lambda rain_data: math.sqrt(rain_data))
-    # coor_data[['latitude', 'longitude']] = coor_data[['latitude', 'longitude']].astype(float)
-    # coor_data['date'] = df['date']
-
-    ## ---------------------------------------------------------------------------- ##
-    ## Sidebar ##
 
     st.sidebar.header('Variable Control')
 
     # Classification Type Selection
-    st.sidebar.subheader('Classification Visualize')
     class_selected = st.sidebar.selectbox('Choose Classification Type', class_data)
 
     # Published Year Selection
     published_year_selected = st.sidebar.selectbox('Choose Published Year', published_year_data)
-
-    # # Province Selection
-    # st.sidebar.subheader('Rain by Date Control')
-    # province_selected = st.sidebar.selectbox('Choose Province', class_data)
-
-    ## ---------------------------------------------------------------------------- ##
-    ## Function to generate the graph
 
     # Generate histogram depends on Province
     def generate_histogram(isAll: bool, type: str): 
@@ -134,34 +125,21 @@ def main() :
                             )
             return his
 
-    # Generate histogram depends on Date
-    # def generate_line(isAll: bool):
+    # Generate Map function
+    def generate_map(type: str):
 
-    #     text_header = ''
-    #     if(not isAll):
-    #         new_df = df[df['province'] == province_selected]
-    #         text_header = f'Average of rain by Province ({province_selected})'
-    #     else:
-    #         new_df = df
-    #         text_header = f'Average of rain by Province (All Date)'
+        if(type == 'scopus') :
+            country_df_ready = country_df[['title', 'affiliation_country', 'publish_year']]
+        elif(type == 'scraped') :
+            country_df_ready = scraped_df[['title', 'affiliation_country', 'publish_year', 'extracted_class']]
 
-    #     sum_by_date = new_df.groupby('date')['rain'].mean().reset_index(name="avg_rain")
-    #     line = px.line(sum_by_date, x="date", y="avg_rain", title='Average of rain by Date')
-    #     line.update_layout(title=text_header, 
-    #                     height = 500, width = 700, xaxis_title = "Average of rain", 
-    #                     yaxis_title = "Province",
-    #                     yaxis={'categoryorder':'total ascending'} 
-    #                     )
-    #     return line
-
-    def generate_map(isAll: bool):
-        country_df_ready = country_df[['title', 'affiliation_country', 'publish_year']]
         if(published_year_selected != 'Any') :
             country_df_ready = country_df_ready[country_df_ready['publish_year'] == published_year_selected]
         if(class_selected != 'Any') :
-            country_df_ready = pd.merge(country_df_ready, class_df.drop(columns=['publish_year']), on='title', how='inner')
+            if(type == 'scopus') :
+                country_df_ready = pd.merge(country_df_ready, class_df.drop(columns=['publish_year']), on='title', how='inner')
             country_df_ready = country_df_ready[country_df_ready['extracted_class'] == class_selected]
-        st.write(country_df_ready)
+        
         
         country_freq = country_df_ready['affiliation_country'].value_counts()
         country_freq = country_freq.reset_index()
@@ -170,10 +148,7 @@ def main() :
         country_freq = country_freq.drop(columns=['Unnamed: 0', 'country_code'])
         radius_factor = 1000000 / country_freq['count'].max()
         country_freq['paper_radius'] = country_freq['count'].apply(lambda count: count * radius_factor)
-        # country_freq['paper_radius'] = country_freq['count']
-        # country_freq['latitude'] = country_freq['latitude'].apply(to_float)
-        # country_freq['longitude'] = country_freq['longitude'].apply(to_float)
-        st.write(country_freq)
+        
         
 
         layer = pdk.Layer("ScatterplotLayer",
@@ -187,7 +162,7 @@ def main() :
                         )
         view_state = pdk.ViewState(longitude=country_freq['longitude'].mean(),
                                 latitude=country_freq['latitude'].mean(),
-                                zoom=0.5
+                                zoom=0.7
                                 )
         map_style = "mapbox://styles/mapbox/dark-v11"
         return pdk.Deck(layers=[layer],
@@ -211,31 +186,11 @@ def main() :
         st.plotly_chart(generate_histogram(False, 'class'))
 
     # Geospatial Analysis on Country
-    st.subheader('Collaboration Analysis (Geospatial)')
-    st.markdown('Rain Map (All Date)')
-    st.pydeck_chart(generate_map(True))
+    st.subheader('Collaboration Analysis on Scopus Data (Geospatial)')
+    st.pydeck_chart(generate_map('scopus'))
 
-    # Rain by Date
-    # st.subheader('Rain by Date')
-    # st.plotly_chart(generate_line(True))
-    # st.plotly_chart(generate_line(False))
+    st.subheader('Foreign Scraped Data')
+    st.pydeck_chart(generate_map('scraped'))
 
-    # # Map on Date
-    # st.subheader('Rain Map Analysis')
-
-    # st.markdown('Rain Map (All Date)')
-    # st.pydeck_chart(generate_map(True))
-
-    # # st.markdown(f'Rain Map {date_selected}')
-    # st.pydeck_chart(generate_map(False))
-
-
-
-    # # Block of Code
-    # st.subheader('Code')
-    # code = inspect.getsource(main)
-    # st.code(code, language='python')
-    # # st.write(df)
-    # # st.write(coor_data)
 
 main()
