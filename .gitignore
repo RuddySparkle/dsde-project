@@ -1,5 +1,7 @@
-# ignore Scopus Data since this is too big. 
+# ignore Scopus Data since this is too big.
 Visualization/scopus_data/
 
 # ignore env for running streamlit
 Visualization/streamlit/venv/
+
+.DS_Store
